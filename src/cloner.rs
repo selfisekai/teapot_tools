@@ -145,14 +145,18 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                     .arg(url)
                     .arg(&clone_path)
                     .spawn()
-                    .expect("git clone");
+                    .expect("git clone spawn")
+                    .wait()
+                    .expect("git clone succeess");
 
                 Command::new("git")
                     .arg("checkout")
                     .arg(git_ref)
                     .current_dir(&clone_path)
                     .spawn()
-                    .expect("git checkout");
+                    .expect("git checkout spawn")
+                    .wait()
+                    .expect("git checkout success");
             }
             Dependency::CIPD {
                 packages: _,
