@@ -1,0 +1,6 @@
+test:
+  image: alpine:edge
+  before_script:
+    - apk add cargo build-base git
+  script:
+    - cargo run --bin gclient
