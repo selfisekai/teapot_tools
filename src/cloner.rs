@@ -61,25 +61,31 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
             panic!("unknown target_os");
         };
         vars.set_item("host_os", host_os).unwrap();
-        for os in ["linux", "mac", "win", "ios", "chromeos"] {
+        for os in [
+            "linux", "mac", "win", "ios", "chromeos", "fuchsia", "android",
+        ] {
             vars.set_item(format!("checkout_{}", os), os == host_os)
                 .unwrap();
             vars.set_item(os, os).unwrap();
         }
-        vars.set_item(
-            "host_cpu",
-            if cfg!(target_arch = "x86_64") {
-                "x64"
-            } else if cfg!(target_arch = "x86") {
-                "ia32"
-            } else if cfg!(target_arch = "aarch64") {
-                "arm64"
-            } else {
-                // TODO: add more; chromium arch reference: https://nodejs.org/dist/latest-v16.x/docs/api/os.html#osarch
-                panic!("unknown target_arch");
-            },
-        )
-        .unwrap();
+        let host_cpu = if cfg!(target_arch = "x86_64") {
+            "x64"
+        } else if cfg!(target_arch = "x86") {
+            "ia32"
+        } else if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            // TODO: add more; chromium arch reference: https://nodejs.org/dist/latest-v16.x/docs/api/os.html#osarch
+            panic!("unknown target_arch");
+        };
+        vars.set_item("host_cpu", host_cpu).unwrap();
+        for cpu in [
+            "arm", "arm64", "x86", "mips", "mips64", "ppc", "s390", "x64",
+        ] {
+            vars.set_item(format!("checkout_{}", cpu), cpu == host_cpu)
+                .unwrap();
+            vars.set_item(cpu, cpu).unwrap();
+        }
         println!("{}", vars);
         let mut deps: Vec<(String, Dependency)> = vec![];
         for (clone_path, dep_def) in &spec.deps {
