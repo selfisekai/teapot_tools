@@ -1,4 +1,4 @@
-use std::{path::Path, process::Command};
+use std::{fs, path::Path, process::Command};
 
 use pyo3::type_object::PyTypeObject;
 use pyo3::types::PyBool;
@@ -129,12 +129,8 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
 
     for (rel_clone_path, dep) in &deps_with_contitions {
         let clone_path = Path::new(base_path).join(rel_clone_path);
-        // TODO: make it os-independent
-        Command::new("mkdir")
-            .arg("-p")
-            .arg(clone_path)
-            .spawn()
-            .expect("mkdir success");
+        // mkdir -p
+        fs::create_dir_all(&clone_path).expect("mkdir success");
 
         match dep {
             Dependency::Git {
