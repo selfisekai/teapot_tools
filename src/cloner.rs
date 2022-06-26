@@ -147,22 +147,14 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                 let url = url_split.pop().unwrap();
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
                 Command::new("git")
-                    .arg("clone")
+                    .arg("fetch")
                     .arg(url)
                     .arg(&clone_path)
+                    .arg(&git_ref)
                     .spawn()
-                    .expect("git clone spawn")
+                    .expect("git fetch spawn")
                     .wait()
-                    .expect("git clone succeess");
-
-                Command::new("git")
-                    .arg("checkout")
-                    .arg(git_ref)
-                    .current_dir(&clone_path)
-                    .spawn()
-                    .expect("git checkout spawn")
-                    .wait()
-                    .expect("git checkout success");
+                    .expect("git fetch success");
             }
             Dependency::CIPD {
                 packages: _,
