@@ -1,6 +1,3 @@
-use std::fs;
-use std::path::Path;
-
 use anyhow::Result;
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeObject;
@@ -8,7 +5,7 @@ use pyo3::types::{PyDict, PyString};
 
 use crate::types::deps::DepsSpec;
 
-pub fn parse_deps(path: &Path) -> Result<DepsSpec> {
+pub fn parse_deps(deps_file: &String) -> Result<DepsSpec> {
     Python::with_gil(|py| -> Result<DepsSpec> {
         let globals = PyDict::new(py);
         // copy builtins (str()) over to globals
@@ -28,12 +25,7 @@ pub fn parse_deps(path: &Path) -> Result<DepsSpec> {
             )
             .unwrap();
 
-        py.run(
-            &fs::read_to_string(path).unwrap(),
-            Some(globals),
-            Some(globals),
-        )
-        .unwrap();
+        py.run(deps_file, Some(globals), Some(globals)).unwrap();
 
         // apparently sometimes they use "{var_name}" and not Var('var_name')
         for (dep_key, dep_val) in globals
