@@ -132,7 +132,7 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
         // TODO: make it os-independent
         Command::new("mkdir")
             .arg("-p")
-            .arg(clone_path.parent().unwrap())
+            .arg(clone_path)
             .spawn()
             .expect("mkdir success");
 
@@ -147,10 +147,18 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                 let url = url_split.pop().unwrap();
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
                 Command::new("git")
+                    .arg("init")
+                    .current_dir(&clone_path)
+                    .spawn()
+                    .expect("git init spawn")
+                    .wait()
+                    .expect("git init success");
+
+                Command::new("git")
                     .arg("fetch")
                     .arg(url)
-                    .arg(&clone_path)
                     .arg(&git_ref)
+                    .current_dir(&clone_path)
                     .spawn()
                     .expect("git fetch spawn")
                     .wait()
