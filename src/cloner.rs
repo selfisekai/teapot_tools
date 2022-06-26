@@ -142,8 +142,11 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                 let git_ref = url_split.pop().unwrap();
                 let url = url_split.pop().unwrap();
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
+                // TODO: check if repository exists there in first place
                 Command::new("git")
                     .arg("init")
+                    // suppresses the warning
+                    .arg("--initial-branch=master")
                     .current_dir(&clone_path)
                     .spawn()
                     .expect("git init spawn")
@@ -159,6 +162,15 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                     .expect("git fetch spawn")
                     .wait()
                     .expect("git fetch success");
+
+                Command::new("git")
+                    .arg("merge")
+                    .arg("FETCH_HEAD")
+                    .current_dir(&clone_path)
+                    .spawn()
+                    .expect("git merge spawn")
+                    .wait()
+                    .expect("git merge success");
             }
             Dependency::CIPD {
                 packages: _,
