@@ -6,4 +6,8 @@ test:
   before_script:
     - apk add cargo build-base git python3-dev
   script:
-    - cargo run --bin gclient
+    - |
+      for space in test_workspaces/*; do
+        echo "==> testing $space";
+        (cd "$space"; cargo run --bin gclient sync);
+      done

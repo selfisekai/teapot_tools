@@ -1,1 +1,3 @@
 /target
+/test_workspaces/*/*
+!/test_workspaces/*/DEPS
