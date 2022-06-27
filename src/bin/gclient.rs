@@ -1,6 +1,6 @@
 use std::{env::current_dir, fs};
 
-use teapot_tools::cloner::clone_dependencies;
+use teapot_tools::cloner::{clone_dependencies, SyncOptions};
 use teapot_tools::deps_parser::parse_deps;
 
 use clap::{Parser, Subcommand};
@@ -19,11 +19,19 @@ enum Commands {
         #[clap(short, long, value_parser, default_value_t = false)]
         force: bool,
 
-        #[clap(short, long, value_parser, default_value_t = false)]
-        nohooks: bool,
+        #[clap(short, long = "nohooks", value_parser, default_value_t = false)]
+        no_hooks: bool,
 
-        #[clap(short = 'p', long, value_parser, default_value_t = false)]
-        noprehooks: bool,
+        #[clap(
+            short = 'p',
+            long = "noprehooks",
+            value_parser,
+            default_value_t = false
+        )]
+        no_prehooks: bool,
+
+        #[clap(long = "no_history", value_parser, default_value_t = false)]
+        no_history: bool,
     },
 }
 
@@ -33,8 +41,9 @@ fn main() {
     match cli.command {
         Commands::Sync {
             force: _,
-            nohooks: _,
-            noprehooks: _,
+            no_hooks: _,
+            no_prehooks: _,
+            no_history,
         } => {
             let current_dir = current_dir().expect("current dir");
 
@@ -42,7 +51,7 @@ fn main() {
                 .expect("DEPS file should be in your current working directory");
             let spec = parse_deps(&deps_file).unwrap();
 
-            clone_dependencies(&spec, current_dir.as_path());
+            clone_dependencies(&spec, current_dir.as_path(), SyncOptions { no_history });
         }
     };
 }

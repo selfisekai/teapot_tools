@@ -5,10 +5,17 @@ use pyo3::types::PyBool;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::Python;
+use smart_default::SmartDefault;
 
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 
-pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
+#[derive(Debug, SmartDefault)]
+pub struct SyncOptions {
+    #[default = false]
+    pub no_history: bool,
+}
+
+pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) {
     let mut deps_with_contitions = Python::with_gil(|py| {
         let globals = PyDict::new(py);
         globals
@@ -157,6 +164,11 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path) {
                     .arg("fetch")
                     .arg(url)
                     .arg(&git_ref)
+                    .args(if opts.no_history {
+                        vec!["--depth=1"]
+                    } else {
+                        vec![]
+                    })
                     .current_dir(&clone_path)
                     .spawn()
                     .expect("git fetch spawn")
