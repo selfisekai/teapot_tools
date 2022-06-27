@@ -26,11 +26,13 @@ enum Commands {
             short = 'p',
             long = "noprehooks",
             value_parser,
-            default_value_t = false
+            default_value_t = false,
         )]
         no_prehooks: bool,
 
-        #[clap(long = "no_history", value_parser, default_value_t = false)]
+        #[clap(long = "no-history", value_parser, default_value_t = false)]
+        /// Clones dependencies without git history
+        /// - reduces size and time
         no_history: bool,
     },
 }
