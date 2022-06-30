@@ -150,7 +150,7 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
                 let url = url_split.pop().unwrap();
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
                 // TODO: check if repository exists there in first place
-                Command::new("git")
+                let git_init = Command::new("git")
                     .arg("init")
                     // suppresses the warning
                     .arg("--initial-branch=master")
@@ -159,23 +159,25 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
                     .expect("git init spawn")
                     .wait()
                     .expect("git init success");
+                assert_eq!(git_init.code(), Some(0));
 
-                Command::new("git")
+                let git_fetch = Command::new("git")
                     .arg("fetch")
                     .arg(url)
                     .arg(&git_ref)
                     .args(if opts.no_history {
-                        vec!["--depth=1"]
+                        &["--depth=1"][..]
                     } else {
-                        vec![]
+                        &[][..]
                     })
                     .current_dir(&clone_path)
                     .spawn()
                     .expect("git fetch spawn")
                     .wait()
                     .expect("git fetch success");
+                assert_eq!(git_fetch.code(), Some(0));
 
-                Command::new("git")
+                let git_merge = Command::new("git")
                     .arg("merge")
                     .arg("FETCH_HEAD")
                     .current_dir(&clone_path)
@@ -183,6 +185,7 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
                     .expect("git merge spawn")
                     .wait()
                     .expect("git merge success");
+                assert_eq!(git_merge.code(), Some(0));
             }
             Dependency::CIPD {
                 packages: _,
