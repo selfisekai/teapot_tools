@@ -9,5 +9,5 @@ test:
     - |
       for space in test_workspaces/*; do
         echo "==> testing $space";
-        (cd "$space"; cargo run --bin gclient sync --no_history);
+        (cd "$space"; cargo run --bin gclient sync --no-history);
       done
