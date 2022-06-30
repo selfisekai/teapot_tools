@@ -16,6 +16,9 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Sync {
+        #[clap(short, long, value_parser)]
+        jobs: Option<usize>,
+
         #[clap(short, long, value_parser, default_value_t = false)]
         force: bool,
 
@@ -26,7 +29,7 @@ enum Commands {
             short = 'p',
             long = "noprehooks",
             value_parser,
-            default_value_t = false,
+            default_value_t = false
         )]
         no_prehooks: bool,
 
@@ -42,6 +45,7 @@ fn main() {
 
     match cli.command {
         Commands::Sync {
+            jobs,
             force: _,
             no_hooks: _,
             no_prehooks: _,
@@ -53,7 +57,14 @@ fn main() {
                 .expect("DEPS file should be in your current working directory");
             let spec = parse_deps(&deps_file).unwrap();
 
-            clone_dependencies(&spec, current_dir.as_path(), SyncOptions { no_history });
+            clone_dependencies(
+                &spec,
+                current_dir.as_path(),
+                SyncOptions {
+                    no_history,
+                    jobs: jobs.unwrap_or(num_cpus::get()),
+                },
+            );
         }
     };
 }
