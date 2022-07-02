@@ -1,25 +1,35 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::process::Stdio;
 use std::{fs, path::Path, process::Command};
 
+use linya::{Bar, Progress};
 use pyo3::type_object::PyTypeObject;
 use pyo3::types::PyBool;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::Python;
-use rayon::prelude::*;
 use smart_default::SmartDefault;
 
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 
-#[derive(Debug, SmartDefault)]
+#[derive(Debug, SmartDefault, Clone)]
 pub struct SyncOptions {
     #[default = false]
     pub no_history: bool,
 
     #[default = 1]
     pub jobs: usize,
+
+    #[default = 0]
+    pub verbosity: i8,
+}
+
+#[derive(Clone)]
+struct NumberedDependency {
+    pub dep_num: usize,
+    pub clone_path: PathBuf,
+    pub dependency: Dependency,
+    pub required_num: Option<usize>,
 }
 
 pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) {
@@ -100,7 +110,9 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
                 .unwrap();
             vars.set_item(cpu, cpu).unwrap();
         }
-        println!("{}", vars);
+        if opts.verbosity >= 2 {
+            println!("{}", vars);
+        }
         let mut deps: Vec<(String, Dependency)> = vec![];
         for (clone_path, dep_def) in &spec.deps {
             match dep_def {
@@ -114,14 +126,18 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
                         } => condition,
                     };
                     if let Some(condition) = maybe_condition {
-                        print!("{}: checking... ", clone_path);
+                        if opts.verbosity >= 2 {
+                            print!("{}: checking... ", clone_path);
+                        }
                         let status = py
                             .eval(&format!("bool({})", condition), Some(globals), Some(vars))
                             .unwrap()
                             .downcast::<PyBool>()
                             .unwrap()
                             .is_true();
-                        println!("{}", status);
+                        if opts.verbosity >= 2 {
+                            println!("{}", status);
+                        }
                         if status == true {
                             deps.push((clone_path.to_owned(), dep.to_owned()));
                         }
@@ -133,20 +149,28 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
         }
         deps
     });
-    println!(
-        "{} out of {} matching conditions",
-        deps_with_contitions.len(),
-        spec.deps.len()
-    );
+    if opts.verbosity >= 0 {
+        println!(
+            "{} out of {} matching conditions",
+            deps_with_contitions.len(),
+            spec.deps.len()
+        );
+    }
 
-    deps_with_contitions.sort_by_cached_key(|(p, _)| p.to_owned());
+    deps_with_contitions.sort_by_cached_key(|(clone_path, _)| clone_path.to_owned());
 
     let mut dep_num = 0;
-    let mut numbered_deps: Vec<(usize, PathBuf, Dependency, Option<usize>)> = deps_with_contitions
+    let mut numbered_deps: Vec<NumberedDependency> = deps_with_contitions
         .into_iter()
         .map(|(clone_path, dep)| {
             dep_num += 1;
-            (dep_num, PathBuf::from(clone_path), dep, None)
+            // (dep_num, base_path.join(clone_path), dep, None);
+            NumberedDependency {
+                dep_num,
+                clone_path: base_path.join(clone_path),
+                dependency: dep,
+                required_num: None,
+            }
         })
         .collect();
 
@@ -156,8 +180,8 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
         let i_dep = a.get_mut(i).unwrap();
         for n_dep in b {
             // if i_dep clone_path is inside another dependency, mark it as a requirement
-            if i_dep.1.starts_with(&n_dep.1) {
-                i_dep.3 = Some(n_dep.0);
+            if i_dep.clone_path.starts_with(&n_dep.clone_path) {
+                i_dep.required_num = Some(n_dep.dep_num);
                 break;
             }
         }
@@ -165,105 +189,127 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
 
     let todo_deps = numbered_deps;
     let mut done: HashSet<usize> = HashSet::new();
-
-    while !todo_deps.is_empty() {
-        let deps_that_can_be_done_in_current_pass: Vec<_> = todo_deps
-            .iter()
-            .filter(|d| d.3.map(|dep| done.contains(&dep)).unwrap_or(true))
+    let mut progress = Progress::new();
+    // if verbosity > 0 the bar is a mess because of the other logs
+    let bar: Option<Bar> = if opts.verbosity == 0 {
+        Some(progress.bar(todo_deps.len(), "fetching dependencies"))
+    } else {
+        None
+    };
+    while todo_deps.len() != done.len() {
+        let deps_cur_pass: Vec<_> = todo_deps
+            .clone()
+            .into_iter()
+            .filter(|d| {
+                !done.contains(&d.dep_num)
+                    && d.required_num.map(|r| done.contains(&r)).unwrap_or(true)
+            })
+            .take(opts.jobs)
+            .map(|dep| {
+                let opts_ = opts.clone();
+                std::thread::spawn(move || handle_dep(dep, opts_))
+            })
             .collect();
 
-        deps_that_can_be_done_in_current_pass
-            .par_iter()
-            .panic_fuse()
-            .for_each(|(_, rel_clone_path, dep, _)| {
-                let clone_path = Path::new(base_path).join(rel_clone_path);
-                // mkdir -p
-                fs::create_dir_all(&clone_path).expect("mkdir success");
-
-                match dep {
-                    Dependency::Git {
-                        url: url_spec,
-                        condition: _,
-                    } => {
-                        // TODO: use an actual url parser to only split in path part
-                        let mut url_split = url_spec.splitn(2, '@').collect::<Vec<&str>>();
-                        let git_ref = url_split.pop().unwrap();
-                        let url = url_split.pop().unwrap();
-                        println!("cloning {} to {}", url, clone_path.to_str().unwrap());
-                        // TODO: check if repository exists there in first place
-                        let git_init = Command::new("git")
-                            .arg("init")
-                            // suppresses the warning
-                            .arg("--initial-branch=master")
-                            .current_dir(&clone_path)
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()
-                            .expect("git init spawn")
-                            .wait()
-                            .expect("git init wait");
-                        if git_init.code() != Some(0) {
-                            panic!(
-                                "git init failed on {:?}, exit code: {:?}",
-                                &clone_path,
-                                git_init.code()
-                            );
-                        }
-
-                        let git_fetch = Command::new("git")
-                            .arg("fetch")
-                            .arg(url)
-                            .arg(&git_ref)
-                            .args(if opts.no_history {
-                                &["--depth=1"][..]
-                            } else {
-                                &[][..]
-                            })
-                            .current_dir(&clone_path)
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()
-                            .expect("git fetch spawn")
-                            .wait()
-                            .expect("git fetch wait");
-                        if git_fetch.code() != Some(0) {
-                            panic!(
-                                "git fetch failed on {:?}, exit code: {:?}",
-                                &clone_path,
-                                git_fetch.code()
-                            );
-                        }
-
-                        let git_merge = Command::new("git")
-                            .arg("merge")
-                            .arg("FETCH_HEAD")
-                            .current_dir(&clone_path)
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()
-                            .expect("git merge spawn")
-                            .wait()
-                            .expect("git merge wait");
-                        if git_merge.code() != Some(0) {
-                            panic!(
-                                "git merge failed on {:?}, exit code: {:?}",
-                                &clone_path,
-                                git_merge.code()
-                            );
-                        }
-                    }
-                    Dependency::CIPD {
-                        packages: _,
-                        condition: _,
-                    } => {
-                        println!("{:?} uses CIPD - unsupported, ignoring", rel_clone_path);
+        for handle in deps_cur_pass {
+            match handle.join().unwrap() {
+                Ok(dep_num) => {
+                    done.insert(dep_num);
+                    if let Some(bar) = &bar {
+                        progress.set_and_draw(bar, done.len());
                     }
                 }
-            });
-        done.extend(
-            deps_that_can_be_done_in_current_pass
-                .into_iter()
-                .map(|(dep_num, ..)| dep_num),
-        );
+                Err(e) => panic!("{}", e),
+            }
+        }
     }
+}
+
+fn handle_dep(
+    NumberedDependency {
+        dep_num,
+        clone_path,
+        dependency,
+        required_num: _,
+    }: NumberedDependency,
+    opts: SyncOptions,
+) -> anyhow::Result<usize> {
+    // mkdir -p
+    fs::create_dir_all(&clone_path).expect("mkdir success");
+
+    match dependency {
+        Dependency::Git {
+            url: url_spec,
+            condition: _,
+        } => {
+            // TODO: use an actual url parser to only split in path part
+            let mut url_split = url_spec.splitn(2, '@').collect::<Vec<&str>>();
+            let git_ref = url_split.pop().unwrap();
+            let url = url_split.pop().unwrap();
+            if opts.verbosity >= 1 {
+                println!("cloning {} to {}", url, clone_path.to_str().unwrap());
+            }
+            // TODO: check if repository exists there in first place
+            let git_init = Command::new("git")
+                .arg("init")
+                // suppresses the warning
+                .arg("--initial-branch=master")
+                .current_dir(&clone_path)
+                .output()
+                .expect("git init spawn");
+            if git_init.status.code() != Some(0) {
+                panic!(
+                    "git init failed on {:?}, exit code: {:?}\n{}",
+                    &clone_path,
+                    git_init.status.code(),
+                    String::from_utf8(git_init.stderr).unwrap()
+                );
+            }
+
+            let git_fetch = Command::new("git")
+                .arg("fetch")
+                .arg(url)
+                .arg(&git_ref)
+                .args(if opts.no_history {
+                    &["--depth=1"][..]
+                } else {
+                    &[][..]
+                })
+                .current_dir(&clone_path)
+                .output()
+                .expect("git fetch spawn");
+            if git_fetch.status.code() != Some(0) {
+                panic!(
+                    "git fetch failed on {:?}, exit code: {:?}\n{}",
+                    &clone_path,
+                    git_fetch.status.code(),
+                    String::from_utf8(git_fetch.stderr).unwrap(),
+                );
+            }
+
+            let git_merge = Command::new("git")
+                .arg("merge")
+                .arg("FETCH_HEAD")
+                .current_dir(&clone_path)
+                .output()
+                .expect("git merge spawn");
+            if git_merge.status.code() != Some(0) {
+                anyhow::bail!(
+                    "git merge failed on {:?}, exit code: {:?}\n{}",
+                    &clone_path,
+                    git_merge.status.code(),
+                    String::from_utf8(git_merge.stderr).unwrap(),
+                );
+            }
+        }
+        Dependency::CIPD {
+            packages: _,
+            condition: _,
+        } => {
+            if opts.verbosity >= 1 {
+                println!("{:?} uses CIPD - unsupported, ignoring", clone_path);
+            }
+        }
+    };
+    Ok(dep_num)
 }

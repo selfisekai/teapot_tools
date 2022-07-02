@@ -11,6 +11,12 @@ use clap::{Parser, Subcommand};
 struct Cli {
     #[clap(subcommand)]
     command: Commands,
+
+    #[clap(short, long, parse(from_occurrences), global = true)]
+    verbose: i8,
+
+    #[clap(short, long, value_parser, default_value_t = false)]
+    quiet: bool,
 }
 
 #[derive(Subcommand)]
@@ -43,6 +49,8 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    let verbosity = if cli.quiet { -1 } else { cli.verbose };
+
     match cli.command {
         Commands::Sync {
             jobs,
@@ -62,7 +70,8 @@ fn main() {
                 current_dir.as_path(),
                 SyncOptions {
                     no_history,
-                    jobs: jobs.unwrap_or(num_cpus::get()),
+                    jobs: jobs.unwrap_or(std::thread::available_parallelism().unwrap().get()),
+                    verbosity,
                 },
             );
         }
