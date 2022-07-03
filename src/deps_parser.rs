@@ -16,7 +16,11 @@ pub fn parse_deps(deps_file: &String) -> Result<DepsSpec> {
             .set_item("json", py.import("json").unwrap())
             .unwrap();
         globals
-            .set_item("Str", py.eval("__builtins__.str", None, None).unwrap())
+            .set_item(
+                "Str",
+                py.eval("lambda x: {'literal': str(x)}", None, None)
+                    .unwrap(),
+            )
             .unwrap();
         globals
             .set_item(
@@ -67,7 +71,7 @@ pub fn parse_deps(deps_file: &String) -> Result<DepsSpec> {
         // something something "you should convert the Py* types instead of using JSON as intermediate" what about no :chad:
         let result = py
             .eval(
-                "json.dumps({'vars': vars, 'deps': deps})",
+                "json.dumps(dict((it for it in globals().items() if it[0] in ('vars', 'deps', 'gclient_gn_args', 'gclient_gn_args_file'))))",
                 Some(globals),
                 None,
             )

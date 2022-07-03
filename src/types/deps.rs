@@ -6,9 +6,15 @@ use serde::{Deserialize, Serialize};
 #[serde(untagged)]
 pub enum VarsPrimitive {
     String(String),
+    LiteralString(LiteralString),
     Int(i64),
     Float(f64),
     Bool(bool),
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct LiteralString {
+    literal: String,
 }
 
 /// The whole DEPS file
@@ -16,6 +22,8 @@ pub enum VarsPrimitive {
 pub struct DepsSpec {
     pub vars: HashMap<String, VarsPrimitive>,
     pub deps: HashMap<String, DependencyDef>,
+    pub gclient_gn_args_file: Option<String>,
+    pub gclient_gn_args: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

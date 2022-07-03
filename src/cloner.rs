@@ -12,6 +12,7 @@ use pyo3::Python;
 use smart_default::SmartDefault;
 use url::Url;
 
+use crate::gn_args::generate_gn_args;
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 
 #[derive(Debug, SmartDefault, Clone)]
@@ -115,6 +116,9 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
         if opts.verbosity >= 2 {
             println!("{}", vars);
         }
+
+        generate_gn_args(&py, vars, spec, base_path);
+
         let mut deps: Vec<(String, Dependency)> = vec![];
         for (clone_path, dep_def) in &spec.deps {
             match dep_def {
