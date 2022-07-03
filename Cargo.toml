@@ -12,6 +12,7 @@ name = "gclient"
 anyhow = "1.0.58"
 clap = { version = "3.2.6", features = ["derive"] }
 linya = "0.3.0"
+path-absolutize = "3.0.13"
 pyo3 = { version = "0.16.5", features = ["auto-initialize", "macros", "serde"] }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"

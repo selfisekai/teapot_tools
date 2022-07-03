@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::{fs, path::Path, process::Command};
 
 use linya::{Bar, Progress};
+use path_absolutize::*;
 use pyo3::type_object::PyTypeObject;
 use pyo3::types::PyBool;
 use pyo3::types::PyDict;
@@ -165,10 +166,20 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
         .into_iter()
         .map(|(clone_path, dep)| {
             dep_num += 1;
-            // (dep_num, base_path.join(clone_path), dep, None);
+            let abs_clone_path = base_path
+                .join(&clone_path)
+                .absolutize()
+                .unwrap()
+                .to_path_buf();
+            if !abs_clone_path.starts_with(base_path) {
+                panic!(
+                    "{} is outside current workdir (impostor among us)",
+                    &clone_path
+                );
+            }
             NumberedDependency {
                 dep_num,
-                clone_path: base_path.join(clone_path),
+                clone_path: abs_clone_path,
                 dependency: dep,
                 required_num: None,
             }
