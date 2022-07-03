@@ -3,7 +3,8 @@ class str(__builtins__.str):
         return True
 
     def __bool__(self):
-        value = eval(self)
+        glob = globals()
+        value = eval(self, glob, glob['vars'])
         if isinstance(value, __builtins__.str):
-            return str(value).__bool__()
+            return value.__bool__()
         return value

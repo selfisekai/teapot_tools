@@ -58,11 +58,12 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
             .unwrap()
             .downcast::<PyDict>()
             .unwrap();
+        globals.set_item("vars", vars).unwrap();
         for (var_name, var_value) in vars {
             if var_value.is_instance(PyString::type_object(py)).unwrap() {
                 vars.set_item(
                     var_name,
-                    py.run(
+                    py.eval(
                         &format!(
                             "str({})",
                             serde_json::to_string(
@@ -117,7 +118,7 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
             println!("{}", vars);
         }
 
-        generate_gn_args(&py, vars, spec, base_path);
+        generate_gn_args(&py, globals, vars, spec, base_path);
 
         let mut deps: Vec<(String, Dependency)> = vec![];
         for (clone_path, dep_def) in &spec.deps {
