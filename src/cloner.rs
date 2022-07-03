@@ -9,6 +9,7 @@ use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::Python;
 use smart_default::SmartDefault;
+use url::Url;
 
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 
@@ -242,10 +243,11 @@ fn handle_dep(
             url: url_spec,
             condition: _,
         } => {
-            // TODO: use an actual url parser to only split in path part
-            let mut url_split = url_spec.splitn(2, '@').collect::<Vec<&str>>();
-            let git_ref = url_split.pop().unwrap();
-            let url = url_split.pop().unwrap();
+            let mut url_parsed = Url::parse(&url_spec).unwrap();
+            let url_path = url_parsed.path().to_string();
+            let (git_path, git_ref) = url_path.split_once('@').unwrap();
+            url_parsed.set_path(git_path);
+            let url = url_parsed.clone().to_string();
             if opts.verbosity >= 1 {
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
             }
