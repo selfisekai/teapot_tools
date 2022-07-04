@@ -80,7 +80,7 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
             }
         }
         let host_os = if cfg!(target_os = "linux") {
-            "linux"
+            "unix"
         } else if cfg!(target_os = "macos") {
             "mac"
         } else if cfg!(windows) {
@@ -89,21 +89,34 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
             panic!("unknown target_os");
         };
         vars.set_item("host_os", host_os).unwrap();
-        for os in [
-            "linux", "mac", "win", "ios", "chromeos", "fuchsia", "android",
-        ] {
+        for os in ["mac", "win", "ios", "chromeos", "fuchsia", "android"] {
             vars.set_item(format!("checkout_{}", os), os == host_os)
                 .unwrap();
             vars.set_item(os, os).unwrap();
         }
+        vars.set_item("checkout_linux", host_os == "unix").unwrap();
+        // depot_tools arch reference: https://chromium.googlesource.com/chromium/tools/depot_tools.git/+/refs/heads/main/detect_host_arch.py
         let host_cpu = if cfg!(target_arch = "x86_64") {
             "x64"
         } else if cfg!(target_arch = "x86") {
-            "ia32"
+            "x86"
         } else if cfg!(target_arch = "aarch64") {
             "arm64"
+        } else if cfg!(target_arch = "arm") {
+            "arm"
+        } else if cfg!(target_arch = "mips") {
+            "mips"
+        } else if cfg!(target_arch = "mips64") {
+            "mips64"
+        } else if cfg!(target_arch = "powerpc") {
+            "ppc"
+        } else if cfg!(target_arch = "powerpc64") {
+            "ppc64"
+        } else if cfg!(target_arch = "riscv64") {
+            "riscv64"
+        } else if cfg!(target_arch = "s390x") {
+            "s390x"
         } else {
-            // TODO: add more; chromium arch reference: https://nodejs.org/dist/latest-v16.x/docs/api/os.html#osarch
             panic!("unknown target_arch");
         };
         vars.set_item("host_cpu", host_cpu).unwrap();
