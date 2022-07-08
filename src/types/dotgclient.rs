@@ -6,7 +6,10 @@ use crate::types::machine::{GclientCPU, GclientOS};
 pub struct Solution {
     pub name: String,
     pub url: String,
-    pub managed: bool,
+    pub managed: Option<bool>,
+    #[serde(default)]
+    /// do not git checkout, just trust the solution is there and follow the DEPS
+    pub tpot_no_checkout: bool,
 }
 
 #[derive(Deserialize, Debug)]

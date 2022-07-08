@@ -88,22 +88,24 @@ fn main() {
 
             for solution in &dotgclient.solutions {
                 let solution_dir = current_dir.join(&solution.name);
-                if verbosity >= 0 {
-                    println!("cloning {} ({})", solution.name, solution.url);
+                if !solution.tpot_no_checkout {
+                    if verbosity >= 0 {
+                        println!("cloning {} ({})", solution.name, solution.url);
+                    }
+                    fs::create_dir_all(&solution_dir).unwrap();
+                    git_clone(
+                        &solution.url,
+                        None,
+                        solution_dir.clone(),
+                        &SyncOptions {
+                            no_history,
+                            git_jobs: jobs,
+                            verbosity,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
                 }
-                fs::create_dir_all(&solution_dir).unwrap();
-                git_clone(
-                    &solution.url,
-                    None,
-                    solution_dir.clone(),
-                    &SyncOptions {
-                        no_history,
-                        git_jobs: jobs,
-                        verbosity,
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
 
                 let deps_file = fs::read_to_string(solution_dir.join("DEPS").as_path())
                     .expect("DEPS file should be in your current working directory");
