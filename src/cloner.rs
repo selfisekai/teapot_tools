@@ -4,16 +4,15 @@ use std::{fs, path::Path, process::Command};
 
 use linya::{Bar, Progress};
 use path_absolutize::*;
-use pyo3::type_object::PyTypeObject;
 use pyo3::types::PyBool;
-use pyo3::types::PyDict;
-use pyo3::types::PyString;
 use pyo3::Python;
 use smart_default::SmartDefault;
 use url::Url;
 
 use crate::gn_args::generate_gn_args;
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
+use crate::types::dotgclient::Dotgclient;
+use crate::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 
 #[derive(Debug, SmartDefault, Clone)]
 pub struct SyncOptions {
@@ -22,6 +21,9 @@ pub struct SyncOptions {
 
     #[default = 1]
     pub jobs: usize,
+
+    #[default = 1]
+    pub git_jobs: usize,
 
     #[default = 0]
     pub verbosity: i8,
@@ -35,98 +37,15 @@ struct NumberedDependency {
     pub required_num: Option<usize>,
 }
 
-pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) {
+pub fn clone_dependencies(
+    spec: &DepsSpec,
+    base_path: &Path,
+    dotgclient: &Dotgclient,
+    opts: SyncOptions,
+) {
     let mut deps_with_contitions = Python::with_gil(|py| {
-        let globals = PyDict::new(py);
-        globals
-            .set_item("__builtins__", py.eval("__builtins__", None, None).unwrap())
-            .unwrap();
-        globals
-            .set_item("vars", serde_json::to_string(&spec.vars).unwrap())
-            .unwrap();
-        globals
-            .set_item("json", py.import("json").unwrap())
-            .unwrap();
-        py.run(
-            include_str!("str_to_bool_eval.py"),
-            Some(globals),
-            Some(globals),
-        )
-        .unwrap();
-        let vars = py
-            .eval("json.loads(vars)", Some(globals), None)
-            .unwrap()
-            .downcast::<PyDict>()
-            .unwrap();
-        globals.set_item("vars", vars).unwrap();
-        for (var_name, var_value) in vars {
-            if var_value.is_instance(PyString::type_object(py)).unwrap() {
-                vars.set_item(
-                    var_name,
-                    py.eval(
-                        &format!(
-                            "str({})",
-                            serde_json::to_string(
-                                &var_value.downcast::<PyString>().unwrap().to_string()
-                            )
-                            .unwrap()
-                        ),
-                        Some(globals),
-                        Some(vars),
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            }
-        }
-        let host_os = if cfg!(target_os = "linux") {
-            "unix"
-        } else if cfg!(target_os = "macos") {
-            "mac"
-        } else if cfg!(windows) {
-            "win"
-        } else {
-            panic!("unknown target_os");
-        };
-        vars.set_item("host_os", host_os).unwrap();
-        for os in ["mac", "win", "ios", "chromeos", "fuchsia", "android"] {
-            vars.set_item(format!("checkout_{}", os), os == host_os)
-                .unwrap();
-            vars.set_item(os, os).unwrap();
-        }
-        vars.set_item("checkout_linux", host_os == "unix").unwrap();
-        // depot_tools arch reference: https://chromium.googlesource.com/chromium/tools/depot_tools.git/+/refs/heads/main/detect_host_arch.py
-        let host_cpu = if cfg!(target_arch = "x86_64") {
-            "x64"
-        } else if cfg!(target_arch = "x86") {
-            "x86"
-        } else if cfg!(target_arch = "aarch64") {
-            "arm64"
-        } else if cfg!(target_arch = "arm") {
-            "arm"
-        } else if cfg!(target_arch = "mips") {
-            "mips"
-        } else if cfg!(target_arch = "mips64") {
-            "mips64"
-        } else if cfg!(target_arch = "powerpc") {
-            "ppc"
-        } else if cfg!(target_arch = "powerpc64") {
-            "ppc64"
-        } else if cfg!(target_arch = "riscv64") {
-            "riscv64"
-        } else if cfg!(target_arch = "s390x") {
-            "s390x"
-        } else {
-            panic!("unknown target_arch");
-        };
-        vars.set_item("host_cpu", host_cpu).unwrap();
-        for cpu in [
-            "arm", "arm64", "x86", "mips", "mips64", "ppc", "s390", "x64",
-        ] {
-            vars.set_item(format!("checkout_{}", cpu), cpu == host_cpu)
-                .unwrap();
-            vars.set_item(cpu, cpu).unwrap();
-        }
+        let (globals, vars) = set_vars_from_hashmap(py, &spec.vars);
+        set_builtin_vars(&dotgclient, vars);
         if opts.verbosity >= 2 {
             println!("{}", vars);
         }
@@ -255,6 +174,70 @@ pub fn clone_dependencies(spec: &DepsSpec, base_path: &Path, opts: SyncOptions) 
     }
 }
 
+// pub and out of handle_dep() for handling .gclient solutions
+pub fn git_clone(
+    url: &str,
+    git_ref: Option<&str>,
+    clone_path: PathBuf,
+    opts: &SyncOptions,
+) -> anyhow::Result<()> {
+    // TODO: check if repository exists there in first place
+    let git_init = Command::new("git")
+        .arg("init")
+        // suppresses the warning
+        .arg("--initial-branch=master")
+        .current_dir(&clone_path)
+        .output()
+        .expect("git init spawn");
+    if git_init.status.code() != Some(0) {
+        panic!(
+            "git init failed on {:?}, exit code: {:?}\n{}",
+            &clone_path,
+            git_init.status.code(),
+            String::from_utf8(git_init.stderr).unwrap()
+        );
+    }
+
+    let mut git_fetch_builder = Command::new("git");
+    git_fetch_builder.arg("fetch").arg(url);
+    if let Some(gref) = git_ref {
+        git_fetch_builder.arg(gref);
+    }
+    if opts.no_history {
+        git_fetch_builder.arg("--depth=1");
+    }
+    git_fetch_builder.arg(format!("--jobs={}", opts.git_jobs));
+
+    let git_fetch = git_fetch_builder
+        .current_dir(&clone_path)
+        .output()
+        .expect("git fetch spawn");
+    if git_fetch.status.code() != Some(0) {
+        panic!(
+            "git fetch failed on {:?}, exit code: {:?}\n{}",
+            &clone_path,
+            git_fetch.status.code(),
+            String::from_utf8(git_fetch.stderr).unwrap(),
+        );
+    }
+
+    let git_merge = Command::new("git")
+        .arg("merge")
+        .arg("FETCH_HEAD")
+        .current_dir(&clone_path)
+        .output()
+        .expect("git merge spawn");
+    if git_merge.status.code() != Some(0) {
+        anyhow::bail!(
+            "git merge failed on {:?}, exit code: {:?}\n{}",
+            &clone_path,
+            git_merge.status.code(),
+            String::from_utf8(git_merge.stderr).unwrap(),
+        );
+    }
+    Ok(())
+}
+
 fn handle_dep(
     NumberedDependency {
         dep_num,
@@ -280,58 +263,7 @@ fn handle_dep(
             if opts.verbosity >= 1 {
                 println!("cloning {} to {}", url, clone_path.to_str().unwrap());
             }
-            // TODO: check if repository exists there in first place
-            let git_init = Command::new("git")
-                .arg("init")
-                // suppresses the warning
-                .arg("--initial-branch=master")
-                .current_dir(&clone_path)
-                .output()
-                .expect("git init spawn");
-            if git_init.status.code() != Some(0) {
-                panic!(
-                    "git init failed on {:?}, exit code: {:?}\n{}",
-                    &clone_path,
-                    git_init.status.code(),
-                    String::from_utf8(git_init.stderr).unwrap()
-                );
-            }
-
-            let git_fetch = Command::new("git")
-                .arg("fetch")
-                .arg(url)
-                .arg(&git_ref)
-                .args(if opts.no_history {
-                    &["--depth=1"][..]
-                } else {
-                    &[][..]
-                })
-                .current_dir(&clone_path)
-                .output()
-                .expect("git fetch spawn");
-            if git_fetch.status.code() != Some(0) {
-                panic!(
-                    "git fetch failed on {:?}, exit code: {:?}\n{}",
-                    &clone_path,
-                    git_fetch.status.code(),
-                    String::from_utf8(git_fetch.stderr).unwrap(),
-                );
-            }
-
-            let git_merge = Command::new("git")
-                .arg("merge")
-                .arg("FETCH_HEAD")
-                .current_dir(&clone_path)
-                .output()
-                .expect("git merge spawn");
-            if git_merge.status.code() != Some(0) {
-                anyhow::bail!(
-                    "git merge failed on {:?}, exit code: {:?}\n{}",
-                    &clone_path,
-                    git_merge.status.code(),
-                    String::from_utf8(git_merge.stderr).unwrap(),
-                );
-            }
+            git_clone(&url, Some(git_ref), clone_path, &opts).unwrap();
         }
         Dependency::CIPD {
             packages: _,
