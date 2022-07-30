@@ -1,8 +1,5 @@
 test:
   image: alpine:edge
-  tags:
-    - docker-alpine
-    - x86_64
   before_script:
     - apk add cargo build-base git python3-dev
   script:
