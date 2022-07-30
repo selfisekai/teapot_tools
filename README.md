@@ -43,3 +43,7 @@ I looked at these errors, at the DEPS file, and got the impression that it's gon
 - DEPS file contains hooks that are supposed to (not implemented yet) be run before/after cloning dependencies, they can be malicious code.
 
 Please only report security issues over GitLab _with the confidentiality checkmark_, or by e-mail: `security at selfisekai dot rocks` (PGP key: [`A16F3AB139AEE4A3635D19ED734C629FD04BD319`](https://keys.selfisekai.rocks/gpg)).
+
+## legal
+
+copyright 2022 Lauren N. Liberda, usage allowed under the terms of [Apache-2.0 license](LICENSE)
