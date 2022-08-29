@@ -109,7 +109,7 @@ fn main() {
 
                 let deps_file = fs::read_to_string(solution_dir.join("DEPS").as_path())
                     .expect("DEPS file should be in your current working directory");
-                let spec = parse_deps(&deps_file).unwrap();
+                let spec = parse_deps(&deps_file, &dotgclient).unwrap();
 
                 clone_dependencies(
                     &spec,

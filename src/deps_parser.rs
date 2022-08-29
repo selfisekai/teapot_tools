@@ -4,8 +4,10 @@ use pyo3::type_object::PyTypeObject;
 use pyo3::types::{PyDict, PyString};
 
 use crate::types::deps::DepsSpec;
+use crate::types::dotgclient::Dotgclient;
+use crate::var_utils::set_builtin_vars;
 
-pub fn parse_deps(deps_file: &String) -> Result<DepsSpec> {
+pub fn parse_deps(deps_file: &String, dotgclient: &Dotgclient) -> Result<DepsSpec> {
     Python::with_gil(|py| -> Result<DepsSpec> {
         let globals = PyDict::new(py);
         // copy builtins (str()) over to globals
@@ -22,12 +24,17 @@ pub fn parse_deps(deps_file: &String) -> Result<DepsSpec> {
                     .unwrap(),
             )
             .unwrap();
+        let builtin_vars = PyDict::new(py);
+        set_builtin_vars(dotgclient, builtin_vars);
         globals
-            .set_item(
-                "Var",
-                py.eval("lambda x: vars[x]", Some(globals), None).unwrap(),
-            )
+            .set_item("gclient_builtin_vars", builtin_vars)
             .unwrap();
+        py.run(
+            include_str!("var_function.py"),
+            Some(globals),
+            Some(globals),
+        )
+        .unwrap();
 
         py.run(deps_file, Some(globals), Some(globals)).unwrap();
 
