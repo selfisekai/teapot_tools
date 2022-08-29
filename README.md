@@ -35,6 +35,12 @@ cat: can't open '/home/lauren/aports/testing/signal-desktop/src/webrtc-4896c/thi
 
 I looked at these errors, at the DEPS file, and got the impression that it's gonna be easier to rewrite it than to get it running.
 
+## mirrors
+
+- codeberg (main development platform): https://codeberg.org/selfisekai/teapot_tools
+- github: https://github.com/selfisekai/teapot_tools
+- crates: https://lib.rs/crates/teapot_tools (https://crates.io/crates/teapot_tools)
+
 ## security considerations
 
 **Do NOT run on untrusted projects.**
