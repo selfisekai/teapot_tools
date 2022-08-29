@@ -7,7 +7,7 @@ use pyo3::Python;
 use crate::host::{host_cpu, host_os};
 use crate::types::deps::VarsPrimitive;
 use crate::types::dotgclient::Dotgclient;
-use crate::types::machine::{GclientCPU, GclientOS};
+use crate::types::machine::{GclientCPU, OS_LIST};
 
 pub fn set_vars_from_hashmap<'a>(
     py: Python<'a>,
@@ -61,14 +61,7 @@ pub fn set_vars_from_hashmap<'a>(
 /// sets up checkout_* vars based on .gclient file, and host_{cpu,os}
 pub fn set_builtin_vars(dotgclient: &Dotgclient, vars: &PyDict) {
     vars.set_item("host_os", &host_os().to_string()).unwrap();
-    for os in [
-        GclientOS::Mac,
-        GclientOS::Win,
-        GclientOS::IOS,
-        GclientOS::ChromeOS,
-        GclientOS::Fuchsia,
-        GclientOS::Android,
-    ] {
+    for os in OS_LIST {
         vars.set_item(
             format!("checkout_{}", os),
             dotgclient.target_os.contains(&os),
@@ -76,11 +69,6 @@ pub fn set_builtin_vars(dotgclient: &Dotgclient, vars: &PyDict) {
         .unwrap();
         vars.set_item(os.to_string(), os.to_string()).unwrap();
     }
-    vars.set_item(
-        "checkout_linux",
-        dotgclient.target_os.contains(&GclientOS::Unix),
-    )
-    .unwrap();
     vars.set_item("host_cpu", &host_cpu().to_string()).unwrap();
     for cpu in [
         GclientCPU::Arm,

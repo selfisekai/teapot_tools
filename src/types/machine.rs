@@ -26,7 +26,7 @@ impl fmt::Display for GclientOS {
             f,
             "{}",
             match self {
-                GclientOS::Unix => "unix",
+                GclientOS::Unix => "linux",
                 GclientOS::Win => "win",
                 GclientOS::Mac => "mac",
                 GclientOS::IOS => "ios",
