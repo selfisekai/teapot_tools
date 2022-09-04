@@ -3,11 +3,11 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use path_absolutize::Absolutize;
-use pyo3::type_object::PyTypeObject;
 use pyo3::types::PyAny;
 use pyo3::types::PyBool;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
+use pyo3::PyTypeInfo;
 use pyo3::Python;
 
 use crate::types::deps::DepsSpec;

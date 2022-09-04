@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use pyo3::type_object::PyTypeObject;
 use pyo3::types::{PyDict, PyString};
+use pyo3::PyTypeInfo;
 use pyo3::Python;
 
 use crate::host::{gclient_host_cpu, gclient_host_os};

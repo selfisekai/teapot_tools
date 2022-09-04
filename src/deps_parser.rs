@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pyo3::prelude::*;
-use pyo3::type_object::PyTypeObject;
 use pyo3::types::{PyDict, PyString};
+use pyo3::PyTypeInfo;
 
 use crate::types::deps::DepsSpec;
 use crate::types::dotgclient::Dotgclient;
