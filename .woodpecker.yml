@@ -17,5 +17,5 @@ pipeline:
       - |
         for space in test_workspaces/*; do
           echo "==> testing $space";
-          (cd "$space"; ./target/release/gclient sync --no-history);
+          (cd "$space"; ../../target/release/gclient sync --no-history);
         done
