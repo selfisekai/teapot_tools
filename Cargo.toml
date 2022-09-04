@@ -2,7 +2,9 @@
 name = "teapot_tools"
 version = "0.1.0"
 edition = "2021"
-description = "Kind-of replacement for depot_tools (gclient)"
+description = "Replacement for depot_tools (gclient) and luci-go (cipd)"
+categories = ["development-tools"]
+keywords = ["gclient", "depot_tools", "cipd", "chromium-infra"]
 authors = ["Lauren N. Liberda <lauren@selfisekai.rocks>"]
 repository = "https://codeberg.org/selfisekai/teapot_tools"
 license = "Apache-2.0"
