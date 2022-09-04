@@ -35,6 +35,21 @@ cat: can't open '/home/lauren/aports/testing/signal-desktop/src/webrtc-4896c/thi
 
 I looked at these errors, at the DEPS file, and got the impression that it's gonna be easier to rewrite it than to get it running.
 
+## dependencies
+
+listed as alpine package names, should be similar on wherever
+
+build:
+- openssl-dev
+- protobuf-dev
+- protoc
+- python3-dev
+- rust
+
+runtime:
+- git
+- python3 (libpython3)
+
 ## mirrors
 
 - codeberg (main development platform): https://codeberg.org/selfisekai/teapot_tools
