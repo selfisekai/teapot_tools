@@ -2,7 +2,7 @@ use anyhow::Result;
 use pyo3::types::PyDict;
 use pyo3::Python;
 
-use crate::host::{host_cpu, host_os};
+use crate::host::{gclient_host_cpu, gclient_host_os};
 use crate::types::dotgclient::Dotgclient;
 use crate::types::machine::{GclientOS, OS_LIST};
 
@@ -26,13 +26,13 @@ pub fn read_dotgclient(contents: String) -> Result<Dotgclient> {
         .to_string()
     });
     let mut result: Dotgclient = serde_json::from_str(&result_json).unwrap();
-    let host_os = host_os();
+    let host_os = gclient_host_os();
     if result.target_os.contains(&GclientOS::All) {
         result.target_os = OS_LIST.into();
     } else if !result.target_os_only && !result.target_os.contains(&host_os) {
         result.target_os.push(host_os);
     }
-    let host_cpu = host_cpu();
+    let host_cpu = gclient_host_cpu();
     if !result.target_cpu_only && !result.target_cpu.contains(&host_cpu) {
         result.target_cpu.push(host_cpu);
     }

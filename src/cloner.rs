@@ -2,13 +2,17 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::{fs, path::Path, process::Command};
 
+use futures::future::try_join_all;
 use linya::{Bar, Progress};
 use path_absolutize::*;
 use pyo3::types::PyBool;
 use pyo3::Python;
 use smart_default::SmartDefault;
 use url::Url;
+use zip::ZipArchive;
 
+use crate::cipd::common::GENERIC_HTTP_CLIENT;
+use crate::cipd::repository::{get_instance_url, resolve_instance};
 use crate::gn_args::generate_gn_args;
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 use crate::types::dotgclient::Dotgclient;
@@ -27,17 +31,21 @@ pub struct SyncOptions {
 
     #[default = 0]
     pub verbosity: i8,
+
+    #[default = false]
+    pub cipd_ignore_platformed: bool,
 }
 
 #[derive(Clone)]
 struct NumberedDependency {
     pub dep_num: usize,
+    pub tmp_path: PathBuf,
     pub clone_path: PathBuf,
     pub dependency: Dependency,
     pub required_num: Option<usize>,
 }
 
-pub fn clone_dependencies(
+pub async fn clone_dependencies(
     spec: &DepsSpec,
     base_path: &Path,
     dotgclient: &Dotgclient,
@@ -57,6 +65,13 @@ pub fn clone_dependencies(
             match dep_def {
                 DependencyDef::Simple(_) => deps.push((clone_path.to_owned(), dep_def.into())),
                 DependencyDef::Normal(dep) => {
+                    if opts.cipd_ignore_platformed {
+                        if let Dependency::CIPD { packages, .. } = dep {
+                            if packages.iter().any(|p| p.package.contains("${{")) {
+                                continue;
+                            }
+                        }
+                    }
                     let maybe_condition = match dep {
                         Dependency::Git { url: _, condition } => condition,
                         Dependency::CIPD {
@@ -98,6 +113,9 @@ pub fn clone_dependencies(
 
     deps_with_contitions.sort_by_cached_key(|(clone_path, _)| clone_path.to_owned());
 
+    let tpot_cipd_path = base_path.join(".tpot_cipd");
+    fs::create_dir_all(&tpot_cipd_path).expect("create .tpot_cipd dir");
+
     let mut dep_num = 0;
     let mut numbered_deps: Vec<NumberedDependency> = deps_with_contitions
         .into_iter()
@@ -116,6 +134,7 @@ pub fn clone_dependencies(
             }
             NumberedDependency {
                 dep_num,
+                tmp_path: tpot_cipd_path.clone(),
                 clone_path: abs_clone_path,
                 dependency: dep,
                 required_num: None,
@@ -161,7 +180,7 @@ pub fn clone_dependencies(
             .collect();
 
         for handle in deps_cur_pass {
-            match handle.join().unwrap() {
+            match handle.join().unwrap().await {
                 Ok(dep_num) => {
                     done.insert(dep_num);
                     if let Some(bar) = &bar {
@@ -238,9 +257,10 @@ pub fn git_clone(
     Ok(())
 }
 
-fn handle_dep(
+async fn handle_dep(
     NumberedDependency {
         dep_num,
+        tmp_path,
         clone_path,
         dependency,
         required_num: _,
@@ -266,11 +286,37 @@ fn handle_dep(
             git_clone(&url, Some(git_ref), clone_path, &opts).unwrap();
         }
         Dependency::CIPD {
-            packages: _,
+            packages,
             condition: _,
         } => {
-            if opts.verbosity >= 1 {
-                println!("{:?} uses CIPD - unsupported, ignoring", clone_path);
+            let instances = try_join_all(
+                packages
+                    .iter()
+                    .map(|p| resolve_instance(&p.package, &p.version)),
+            )
+            .await?;
+            for instance in &instances {
+                let digest = instance.digest.clone().unwrap();
+                let zip_file = tmp_path.join(&format!("{}.zip", &digest.hex_digest));
+                let instance_url = get_instance_url(&instance.package, &digest)
+                    .await
+                    .expect("getting cipd instance url");
+                fs::write(
+                    &zip_file,
+                    GENERIC_HTTP_CLIENT
+                        .get(instance_url)
+                        .send()
+                        .await
+                        .expect("downloading cipd instance")
+                        .bytes()
+                        .await
+                        .unwrap(),
+                )
+                .expect("writing cipd zip");
+                ZipArchive::new(fs::File::open(&zip_file).expect("reading cipd instance file"))
+                    .expect("parsing cipd instance file")
+                    .extract(&clone_path)
+                    .expect("extracting cipd instance");
             }
         }
     };

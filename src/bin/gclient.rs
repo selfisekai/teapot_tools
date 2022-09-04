@@ -49,6 +49,11 @@ enum Commands {
         /// Clones dependencies without git history
         /// - reduces size and time
         no_history: bool,
+
+        #[clap(long = "tpot-cipd-ignore-platformed", action)]
+        /// Ignore cipd dependencies with host platform variable templates
+        /// - pretty surely they are built binaries
+        cipd_ignore_platformed: bool,
     },
     // gclient config --spec 'solutions = [
     //   {
@@ -66,7 +71,8 @@ enum Commands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
     let verbosity = if cli.quiet { -1 } else { cli.verbose };
@@ -78,6 +84,7 @@ fn main() {
             no_hooks: _,
             no_prehooks: _,
             no_history,
+            cipd_ignore_platformed,
         } => {
             let jobs = jobs_.unwrap_or_else(|| std::thread::available_parallelism().unwrap().get());
             let current_dir = current_dir().expect("current dir");
@@ -119,9 +126,11 @@ fn main() {
                         no_history,
                         jobs,
                         verbosity,
+                        cipd_ignore_platformed,
                         ..Default::default()
                     },
-                );
+                )
+                .await;
             }
         }
         Commands::Config { spec: maybe_spec } => {

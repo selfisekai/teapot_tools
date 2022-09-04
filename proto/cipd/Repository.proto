@@ -1,0 +1,47 @@
+syntax = "proto3";
+package cipd.repository;
+
+service Repository {
+    rpc ResolveVersion (ResolveVersionRequest) returns (PackageInstance);
+    rpc ListInstances (ListInstancesRequest) returns (ListInstancesResponse);
+    rpc GetInstanceURL (GetInstanceURLRequest) returns (InstanceURL);
+}
+
+message ResolveVersionRequest {
+    string package = 1;
+    string tag = 2;
+}
+
+message ListInstancesRequest {
+    string package = 1;
+}
+
+message ListInstancesResponse {
+    repeated PackageInstance instance = 1;
+}
+
+message GetInstanceURLRequest {
+    string package = 1;
+    InstanceDigest digest = 2;
+}
+
+message InstanceURL {
+    string url = 1;
+}
+
+message PackageInstance {
+    string package = 1;
+    InstanceDigest digest = 2;
+    string publisher = 3;
+}
+
+enum HashAlgorithm {
+    UNSPECIFIED = 0;
+    SHA1 = 1;
+    SHA256 = 2;
+}
+
+message InstanceDigest {
+    HashAlgorithm algorithm = 1;
+    string hex_digest = 2;
+}
