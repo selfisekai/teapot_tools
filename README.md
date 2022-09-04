@@ -1,6 +1,6 @@
 # teapot_tools
 
-reimplementation of gclient in Rust (or as some may call it, Python with extra steps).
+reimplementation of gclient from depot_tools and cipd from luci-go in Rust (or as some may call it, Python with extra steps).
 
 ## why?
 
