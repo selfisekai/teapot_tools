@@ -120,7 +120,7 @@ async fn main() {
 
                 clone_dependencies(
                     &spec,
-                    solution_dir.as_path(),
+                    current_dir.as_path(),
                     &dotgclient,
                     SyncOptions {
                         no_history,
