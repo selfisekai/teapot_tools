@@ -13,7 +13,9 @@ pipeline:
       - cargo fetch --locked
       # build
       - cargo build --frozen --release --bin gclient
-      # test
+      # unit tests
+      - cargo test --release
+      # integration tests
       - |
         for space in test_workspaces/*; do
           echo "==> testing $space";
