@@ -194,12 +194,18 @@ pub async fn clone_dependencies(
 }
 
 // pub and out of handle_dep() for handling .gclient solutions
-pub fn git_clone(
-    url: &str,
-    git_ref: Option<&str>,
-    clone_path: PathBuf,
-    opts: &SyncOptions,
-) -> anyhow::Result<()> {
+pub fn git_clone(url_spec: &str, clone_path: PathBuf, opts: &SyncOptions) -> anyhow::Result<()> {
+    let mut url_parsed = Url::parse(&url_spec).unwrap();
+    let url_path = url_parsed.path().to_string();
+    let (git_path, git_ref) = if url_path.contains('@') {
+        let (p, r) = url_path.split_once('@').unwrap();
+        (p, Some(r))
+    } else {
+        (url_path.as_str(), None)
+    };
+    url_parsed.set_path(git_path);
+    let url = url_parsed.clone().to_string();
+
     // TODO: check if repository exists there in first place
     let git_init = Command::new("git")
         .arg("init")
@@ -275,15 +281,10 @@ async fn handle_dep(
             url: url_spec,
             condition: _,
         } => {
-            let mut url_parsed = Url::parse(&url_spec).unwrap();
-            let url_path = url_parsed.path().to_string();
-            let (git_path, git_ref) = url_path.split_once('@').unwrap();
-            url_parsed.set_path(git_path);
-            let url = url_parsed.clone().to_string();
             if opts.verbosity >= 1 {
-                println!("cloning {} to {}", url, clone_path.to_str().unwrap());
+                println!("cloning {} to {}", url_spec, clone_path.to_str().unwrap());
             }
-            git_clone(&url, Some(git_ref), clone_path, &opts).unwrap();
+            git_clone(&url_spec, clone_path, &opts).unwrap();
         }
         Dependency::CIPD {
             packages,

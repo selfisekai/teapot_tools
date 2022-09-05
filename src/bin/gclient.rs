@@ -102,7 +102,6 @@ async fn main() {
                     fs::create_dir_all(&solution_dir).unwrap();
                     git_clone(
                         &solution.url,
-                        None,
                         solution_dir.clone(),
                         &SyncOptions {
                             no_history,
