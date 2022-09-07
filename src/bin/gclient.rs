@@ -1,5 +1,6 @@
 use std::{env::current_dir, fs};
 
+use anyhow::Context;
 use teapot_tools::cloner::{clone_dependencies, git_clone, SyncOptions};
 use teapot_tools::deps_parser::parse_deps;
 
@@ -90,8 +91,12 @@ async fn main() {
             let current_dir = current_dir().expect("current dir");
 
             let dotgclient_location = current_dir.join(cli.gclient_file);
-            let dotgclient =
-                read_dotgclient(fs::read_to_string(dotgclient_location).unwrap()).unwrap();
+            let dotgclient = read_dotgclient(
+                fs::read_to_string(&dotgclient_location)
+                    .with_context(|| format!("cannot read file: {:?}", dotgclient_location))
+                    .unwrap(),
+            )
+            .unwrap();
 
             for solution in &dotgclient.solutions {
                 let solution_dir = current_dir.join(&solution.name);
@@ -99,7 +104,11 @@ async fn main() {
                     if verbosity >= 0 {
                         println!("cloning {} ({})", solution.name, solution.url);
                     }
-                    fs::create_dir_all(&solution_dir).unwrap();
+                    fs::create_dir_all(&solution_dir)
+                        .with_context(|| {
+                            format!("cannot create solution directory: {:?}", &solution_dir)
+                        })
+                        .unwrap();
                     git_clone(
                         &solution.url,
                         solution_dir.clone(),
@@ -113,8 +122,10 @@ async fn main() {
                     .unwrap();
                 }
 
-                let deps_file = fs::read_to_string(solution_dir.join("DEPS").as_path())
-                    .expect("DEPS file should be in your current working directory");
+                let deps_file_location = solution_dir.join("DEPS");
+                let deps_file = fs::read_to_string(&deps_file_location)
+                    .with_context(|| format!("cannot read file: {:?}", &deps_file_location))
+                    .unwrap();
                 let spec = parse_deps(&deps_file, &dotgclient).unwrap();
 
                 clone_dependencies(
@@ -139,7 +150,9 @@ async fn main() {
             } else {
                 // display (out of original gclient spec, but fuck it)
                 let dotgclient = read_dotgclient(
-                    fs::read_to_string(&dotgclient_location).expect("reading .gclient"),
+                    fs::read_to_string(&dotgclient_location)
+                        .with_context(|| format!("cannot read file: {:?}", &dotgclient_location))
+                        .unwrap(),
                 )
                 .expect("parsing .gclient");
                 println!("{:#?}", dotgclient);
