@@ -122,7 +122,8 @@ async fn main() {
                     .unwrap();
                 }
 
-                let deps_file_location = solution_dir.join("DEPS");
+                let deps_file_location =
+                    solution_dir.join(solution.deps_file.as_deref().unwrap_or("DEPS"));
                 let deps_file = fs::read_to_string(&deps_file_location)
                     .with_context(|| format!("cannot read file: {:?}", &deps_file_location))
                     .unwrap();

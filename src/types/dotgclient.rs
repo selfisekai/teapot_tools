@@ -7,6 +7,7 @@ pub struct Solution {
     pub name: String,
     pub url: String,
     pub managed: Option<bool>,
+    pub deps_file: Option<String>,
     #[serde(default)]
     /// do not git checkout, just trust the solution is there and follow the DEPS
     pub tpot_no_checkout: bool,
