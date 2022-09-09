@@ -46,13 +46,15 @@ struct NumberedDependency {
     pub required_num: Option<usize>,
 }
 
-pub async fn clone_dependencies(
+pub async fn clone_dependencies<P: AsRef<Path>>(
     spec: &DepsSpec,
-    base_path: &Path,
+    base_path_: P,
     solution: &Solution,
     dotgclient: &Dotgclient,
     opts: SyncOptions,
 ) {
+    let base_path = base_path_.as_ref();
+
     let mut deps_with_contitions = Python::with_gil(|py| {
         let mut spec_vars = spec.vars.clone();
         if let Some(custom_vars) = solution.custom_vars.clone() {

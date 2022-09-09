@@ -131,7 +131,11 @@ async fn main() {
 
                 clone_dependencies(
                     &spec,
-                    current_dir.as_path(),
+                    if spec.use_relative_paths {
+                        current_dir.join(deps_file_location.parent().unwrap())
+                    } else {
+                        current_dir.clone()
+                    },
                     &solution,
                     &dotgclient,
                     SyncOptions {

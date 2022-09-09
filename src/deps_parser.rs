@@ -89,7 +89,7 @@ pub fn parse_deps(
         // something something "you should convert the Py* types instead of using JSON as intermediate" what about no :chad:
         let result = py
             .eval(
-                "json.dumps(dict((it for it in globals().items() if it[0] in ('vars', 'deps', 'gclient_gn_args', 'gclient_gn_args_file'))))",
+                "json.dumps(dict((it for it in globals().items() if it[0] in ('vars', 'deps', 'gclient_gn_args', 'gclient_gn_args_file', 'use_relative_paths'))))",
                 Some(globals),
                 None,
             )

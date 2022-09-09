@@ -63,12 +63,12 @@ fn generate_gn_args_contents(
     lines.join("\n") + "\n"
 }
 
-pub fn generate_gn_args(
+pub fn generate_gn_args<P: AsRef<Path>>(
     py: &Python,
     globals: &PyDict,
     vars: &PyDict,
     spec: &DepsSpec,
-    base_path: &Path,
+    base_path: P,
 ) {
     if spec.gclient_gn_args.is_none() || spec.gclient_gn_args_file.is_none() {
         return ();

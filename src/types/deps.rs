@@ -24,6 +24,8 @@ pub struct DepsSpec {
     pub deps: HashMap<String, DependencyDef>,
     pub gclient_gn_args_file: Option<String>,
     pub gclient_gn_args: Option<Vec<String>>,
+    #[serde(default)]
+    pub use_relative_paths: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]
