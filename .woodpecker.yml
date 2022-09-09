@@ -12,6 +12,7 @@ pipeline:
       # install cargo dependencies
       - cargo fetch --locked
       # build
+      - cargo build --frozen --bin download_from_google_storage
       - cargo build --frozen --bin gclient
       # unit tests
       - cargo test
