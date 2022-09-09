@@ -41,7 +41,6 @@ listed as alpine package names, should be similar on wherever
 
 build:
 - openssl-dev
-- protobuf-dev
 - protoc
 - python3-dev
 - rust
