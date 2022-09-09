@@ -12,6 +12,9 @@ license = "Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
+name = "download_from_google_storage"
+
+[[bin]]
 name = "gclient"
 
 [dependencies]
