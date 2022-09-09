@@ -16,7 +16,7 @@ use crate::cipd::common::GENERIC_HTTP_CLIENT;
 use crate::cipd::repository::{get_instance_url, resolve_instance};
 use crate::gn_args::generate_gn_args;
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
-use crate::types::dotgclient::Dotgclient;
+use crate::types::dotgclient::{Dotgclient, Solution};
 use crate::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 
 #[derive(Debug, SmartDefault, Clone)]
@@ -49,11 +49,16 @@ struct NumberedDependency {
 pub async fn clone_dependencies(
     spec: &DepsSpec,
     base_path: &Path,
+    solution: &Solution,
     dotgclient: &Dotgclient,
     opts: SyncOptions,
 ) {
     let mut deps_with_contitions = Python::with_gil(|py| {
-        let (globals, vars) = set_vars_from_hashmap(py, &spec.vars);
+        let mut spec_vars = spec.vars.clone();
+        if let Some(custom_vars) = solution.custom_vars.clone() {
+            spec_vars.extend(custom_vars);
+        }
+        let (globals, vars) = set_vars_from_hashmap(py, &spec_vars);
         set_builtin_vars(&dotgclient, vars);
         if opts.verbosity >= 2 {
             println!("{}", vars);

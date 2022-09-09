@@ -127,11 +127,12 @@ async fn main() {
                 let deps_file = fs::read_to_string(&deps_file_location)
                     .with_context(|| format!("cannot read file: {:?}", &deps_file_location))
                     .unwrap();
-                let spec = parse_deps(&deps_file, &dotgclient).unwrap();
+                let spec = parse_deps(&deps_file, &solution, &dotgclient).unwrap();
 
                 clone_dependencies(
                     &spec,
                     current_dir.as_path(),
+                    &solution,
                     &dotgclient,
                     SyncOptions {
                         no_history,

@@ -4,10 +4,14 @@ use pyo3::types::{PyDict, PyString};
 use pyo3::PyTypeInfo;
 
 use crate::types::deps::DepsSpec;
-use crate::types::dotgclient::Dotgclient;
-use crate::var_utils::set_builtin_vars;
+use crate::types::dotgclient::{Dotgclient, Solution};
+use crate::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 
-pub fn parse_deps(deps_file: &String, dotgclient: &Dotgclient) -> Result<DepsSpec> {
+pub fn parse_deps(
+    deps_file: &String,
+    solution: &Solution,
+    dotgclient: &Dotgclient,
+) -> Result<DepsSpec> {
     Python::with_gil(|py| -> Result<DepsSpec> {
         let globals = PyDict::new(py);
         // copy builtins (str()) over to globals
@@ -28,6 +32,13 @@ pub fn parse_deps(deps_file: &String, dotgclient: &Dotgclient) -> Result<DepsSpe
         set_builtin_vars(dotgclient, builtin_vars);
         globals
             .set_item("gclient_builtin_vars", builtin_vars)
+            .unwrap();
+        let custom_vars = PyDict::new(py);
+        if let Some(custom_vars) = &solution.custom_vars {
+            set_vars_from_hashmap(py, &custom_vars);
+        }
+        globals
+            .set_item("gclient_custom_vars", custom_vars)
             .unwrap();
         py.run(
             include_str!("var_function.py"),

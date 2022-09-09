@@ -1,5 +1,11 @@
 def Var(k):
-    try:
-        return vars[k]
-    except KeyError:
-        return gclient_builtin_vars[k]
+    v = gclient_custom_vars.get(k)
+    if v is not None:
+        return v
+    v = vars.get(k)
+    if v is not None:
+        return v
+    v = gclient_builtin_vars.get(k)
+    if v is not None:
+        return v
+    raise Exception(f'Var("{k}") unresolved')
