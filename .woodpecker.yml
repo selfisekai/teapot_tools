@@ -8,7 +8,7 @@ pipeline:
         https://alpine.sakamoto.pl/alpine/edge/community" > /etc/apk/repositories
       # install system dependencies
       - apk update
-      - apk add --no-cache cargo build-base git openssl-dev protobuf-dev protoc python3-dev
+      - apk add --no-cache cargo build-base git openssl-dev protoc python3-dev
       # install cargo dependencies
       - cargo fetch --locked
       # build
