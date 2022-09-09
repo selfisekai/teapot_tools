@@ -15,9 +15,3 @@ pipeline:
       - cargo build --frozen --release --bin gclient
       # unit tests
       - cargo test --release
-      # integration tests
-      - |
-        for space in test_workspaces/*; do
-          echo "==> testing $space";
-          (cd "$space"; ../../target/release/gclient sync --no-history);
-        done
