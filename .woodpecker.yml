@@ -12,6 +12,6 @@ pipeline:
       # install cargo dependencies
       - cargo fetch --locked
       # build
-      - cargo build --frozen --release --bin gclient
+      - cargo build --frozen --bin gclient
       # unit tests
-      - cargo test --release
+      - cargo test
