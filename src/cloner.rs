@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::{fs, path::Path, process::Command};
 
+use anyhow::Context;
 use futures::future::try_join_all;
 use linya::{Bar, Progress};
 use path_absolutize::*;
@@ -194,7 +195,11 @@ pub async fn clone_dependencies(
 }
 
 // pub and out of handle_dep() for handling .gclient solutions
-pub fn git_clone(url_spec: &str, clone_path: PathBuf, opts: &SyncOptions) -> anyhow::Result<()> {
+pub fn git_clone<P: AsRef<Path>>(
+    url_spec: &str,
+    clone_path: P,
+    opts: &SyncOptions,
+) -> anyhow::Result<()> {
     let mut url_parsed = Url::parse(&url_spec).unwrap();
     let url_path = url_parsed.path().to_string();
     let (git_path, git_ref) = if url_path.contains('@') {
@@ -217,7 +222,7 @@ pub fn git_clone(url_spec: &str, clone_path: PathBuf, opts: &SyncOptions) -> any
     if git_init.status.code() != Some(0) {
         panic!(
             "git init failed on {:?}, exit code: {:?}\n{}",
-            &clone_path,
+            clone_path.as_ref(),
             git_init.status.code(),
             String::from_utf8(git_init.stderr).unwrap()
         );
@@ -240,7 +245,7 @@ pub fn git_clone(url_spec: &str, clone_path: PathBuf, opts: &SyncOptions) -> any
     if git_fetch.status.code() != Some(0) {
         panic!(
             "git fetch failed on {:?}, exit code: {:?}\n{}",
-            &clone_path,
+            clone_path.as_ref(),
             git_fetch.status.code(),
             String::from_utf8(git_fetch.stderr).unwrap(),
         );
@@ -255,7 +260,7 @@ pub fn git_clone(url_spec: &str, clone_path: PathBuf, opts: &SyncOptions) -> any
     if git_merge.status.code() != Some(0) {
         anyhow::bail!(
             "git merge failed on {:?}, exit code: {:?}\n{}",
-            &clone_path,
+            clone_path.as_ref(),
             git_merge.status.code(),
             String::from_utf8(git_merge.stderr).unwrap(),
         );
@@ -284,7 +289,8 @@ async fn handle_dep(
             if opts.verbosity >= 1 {
                 println!("cloning {} to {}", url_spec, clone_path.to_str().unwrap());
             }
-            git_clone(&url_spec, clone_path, &opts).unwrap();
+            git_clone(&url_spec, &clone_path, &opts)
+                .with_context(|| format!("while cloning {} to {:?}", url_spec, clone_path))?;
         }
         Dependency::CIPD {
             packages,
@@ -301,23 +307,27 @@ async fn handle_dep(
                 let zip_file = tmp_path.join(&format!("{}.zip", &digest.hex_digest));
                 let instance_url = get_instance_url(&instance.package, &digest)
                     .await
-                    .expect("getting cipd instance url");
+                    .with_context(|| {
+                        format!("getting cipd instance url (clone path: {:?})", clone_path)
+                    })?;
                 fs::write(
                     &zip_file,
                     GENERIC_HTTP_CLIENT
-                        .get(instance_url)
+                        .get(&instance_url)
                         .send()
                         .await
-                        .expect("downloading cipd instance")
+                        .with_context(|| format!("downloading cipd instance: {:?}", instance_url))?
                         .bytes()
                         .await
-                        .unwrap(),
+                        .with_context(|| {
+                            format!("getting bytes of cipd instance: {:?}", instance_url)
+                        })?,
                 )
-                .expect("writing cipd zip");
+                .with_context(|| format!("writing cipd zip: {:?}", zip_file))?;
                 ZipArchive::new(fs::File::open(&zip_file).expect("reading cipd instance file"))
-                    .expect("parsing cipd instance file")
+                    .with_context(|| format!("parsing cipd instance file: {:?}", zip_file))?
                     .extract(&clone_path)
-                    .expect("extracting cipd instance");
+                    .with_context(|| format!("extracting cipd instance to: {:?}", clone_path))?;
             }
         }
     };
