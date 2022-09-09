@@ -53,6 +53,7 @@ runtime:
 
 - codeberg (main development platform): https://codeberg.org/selfisekai/teapot_tools
 - github: https://github.com/selfisekai/teapot_tools
+- gitlab: https://gitlab.com/selfisekai/teapot_tools
 - crates: https://lib.rs/crates/teapot_tools (https://crates.io/crates/teapot_tools)
 
 ## security considerations
