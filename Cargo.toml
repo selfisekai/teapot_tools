@@ -21,6 +21,7 @@ name = "gclient"
 anyhow = "1.0.58"
 clap = { version = "3.2.6", features = ["derive"] }
 futures = "0.3.24"
+globwalk = "0.8.1"
 linya = "0.3.0"
 once_cell = "1.14.0"
 path-absolutize = "3.0.13"

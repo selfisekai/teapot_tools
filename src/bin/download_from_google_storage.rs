@@ -3,6 +3,7 @@ use std::{env::current_dir, path::PathBuf};
 use anyhow::Context;
 use clap::Parser;
 
+use globwalk::GlobWalkerBuilder;
 use path_absolutize::Absolutize;
 use teapot_tools::gs::download::{download, download_from_sha1_file};
 
@@ -77,6 +78,19 @@ async fn main() {
             .await
             .unwrap();
     } else {
-        panic!("--directory not supported");
+        let base_path_ = PathBuf::from(&cli.target);
+        let base_path = base_path_.absolutize_from(&cwd).unwrap().to_path_buf();
+        for sha1_file in
+            GlobWalkerBuilder::new(base_path, if cli.recursive { "*.sha1" } else { "/*.sha1" })
+                .follow_links(true)
+                .build()
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|f| f.file_type().is_file())
+        {
+            download_from_sha1_file(&cli.bucket, sha1_file.path())
+                .await
+                .unwrap();
+        }
     }
 }
