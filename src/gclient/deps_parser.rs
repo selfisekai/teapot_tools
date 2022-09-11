@@ -3,9 +3,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use pyo3::PyTypeInfo;
 
+use crate::gclient::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 use crate::types::deps::DepsSpec;
 use crate::types::dotgclient::{Dotgclient, Solution};
-use crate::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 
 pub fn parse_deps(
     deps_file: &String,

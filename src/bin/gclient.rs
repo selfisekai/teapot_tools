@@ -2,11 +2,11 @@ use std::collections::HashSet;
 use std::{env::current_dir, fs};
 
 use anyhow::Context;
-use teapot_tools::cloner::{clone_dependencies, git_clone, SyncOptions};
-use teapot_tools::deps_parser::parse_deps;
+use teapot_tools::gclient::cloner::{clone_dependencies, git_clone, SyncOptions};
+use teapot_tools::gclient::deps_parser::parse_deps;
 
 use clap::{Parser, Subcommand};
-use teapot_tools::dotgclient::read_dotgclient;
+use teapot_tools::gclient::dotgclient::read_dotgclient;
 use teapot_tools::types::dotgclient::Solution;
 
 #[derive(Parser)]

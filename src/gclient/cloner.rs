@@ -14,10 +14,10 @@ use zip::ZipArchive;
 
 use crate::cipd::common::GENERIC_HTTP_CLIENT;
 use crate::cipd::repository::{get_instance_url, resolve_instance};
-use crate::gn_args::generate_gn_args;
+use crate::gclient::gn_args::generate_gn_args;
+use crate::gclient::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
 use crate::types::dotgclient::{Dotgclient, Solution};
-use crate::var_utils::{set_builtin_vars, set_vars_from_hashmap};
 
 #[derive(Debug, SmartDefault, Clone)]
 pub struct SyncOptions {
