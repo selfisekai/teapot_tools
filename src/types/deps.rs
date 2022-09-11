@@ -26,6 +26,8 @@ pub struct DepsSpec {
     pub gclient_gn_args: Option<Vec<String>>,
     #[serde(default)]
     pub use_relative_paths: bool,
+    #[serde(default)]
+    pub recursedeps: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

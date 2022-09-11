@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::{env::current_dir, fs};
 
 use anyhow::Context;
@@ -6,6 +7,7 @@ use teapot_tools::deps_parser::parse_deps;
 
 use clap::{Parser, Subcommand};
 use teapot_tools::dotgclient::read_dotgclient;
+use teapot_tools::types::dotgclient::Solution;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -98,55 +100,86 @@ async fn main() {
             )
             .unwrap();
 
-            for solution in &dotgclient.solutions {
-                let solution_dir = current_dir.join(&solution.name);
-                if !solution.tpot_no_checkout {
-                    if verbosity >= 0 {
-                        println!("cloning {} ({})", solution.name, solution.url);
-                    }
-                    fs::create_dir_all(&solution_dir)
-                        .with_context(|| {
-                            format!("cannot create solution directory: {:?}", &solution_dir)
-                        })
+            let mut todo_solutions = dotgclient.solutions.clone();
+            let mut done_solutions: HashSet<usize> = HashSet::new();
+
+            while todo_solutions.len() != done_solutions.len() {
+                let tbd_solutions: Vec<_> = todo_solutions
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .filter(|s| !done_solutions.contains(&s.0))
+                    .collect();
+                for solution in tbd_solutions.iter().map(|s| &s.1) {
+                    let solution_dir = current_dir.join(&solution.name);
+                    if !solution.tpot_no_checkout {
+                        if verbosity >= 0 {
+                            println!("cloning {} ({})", solution.name, solution.url);
+                        }
+                        fs::create_dir_all(&solution_dir)
+                            .with_context(|| {
+                                format!("cannot create solution directory: {:?}", &solution_dir)
+                            })
+                            .unwrap();
+                        git_clone(
+                            &solution.url,
+                            solution_dir.clone(),
+                            &SyncOptions {
+                                no_history,
+                                git_jobs: jobs,
+                                verbosity,
+                                ..Default::default()
+                            },
+                        )
                         .unwrap();
-                    git_clone(
-                        &solution.url,
-                        solution_dir.clone(),
-                        &SyncOptions {
+                    } else if solution.tpot_internal_from_recursedeps {
+                        if verbosity >= 0 {
+                            println!("following recursedeps in {}", solution.name);
+                        }
+                    }
+
+                    let deps_file_location =
+                        solution_dir.join(solution.deps_file.as_deref().unwrap_or("DEPS"));
+                    let deps_file = fs::read_to_string(&deps_file_location)
+                        .with_context(|| format!("cannot read file: {:?}", &deps_file_location))
+                        .unwrap();
+                    let spec = parse_deps(&deps_file, &solution, &dotgclient).unwrap();
+
+                    // if there are recursedeps, add them to the todo
+                    todo_solutions.extend(spec.recursedeps.iter().map(|d| Solution {
+                        name: if spec.use_relative_paths {
+                            // if paths are relative to current DEPS,
+                            // add the path of current DEPS to it
+                            format!("{}/{}", solution.name, d)
+                        } else {
+                            d.clone()
+                        },
+                        url: "".to_string(),
+                        tpot_no_checkout: true,
+                        tpot_internal_from_recursedeps: true,
+                        ..Default::default()
+                    }));
+
+                    clone_dependencies(
+                        &spec,
+                        if spec.use_relative_paths {
+                            current_dir.join(deps_file_location.parent().unwrap())
+                        } else {
+                            current_dir.clone()
+                        },
+                        &solution,
+                        &dotgclient,
+                        SyncOptions {
                             no_history,
-                            git_jobs: jobs,
+                            jobs,
                             verbosity,
+                            cipd_ignore_platformed,
                             ..Default::default()
                         },
                     )
-                    .unwrap();
+                    .await;
                 }
-
-                let deps_file_location =
-                    solution_dir.join(solution.deps_file.as_deref().unwrap_or("DEPS"));
-                let deps_file = fs::read_to_string(&deps_file_location)
-                    .with_context(|| format!("cannot read file: {:?}", &deps_file_location))
-                    .unwrap();
-                let spec = parse_deps(&deps_file, &solution, &dotgclient).unwrap();
-
-                clone_dependencies(
-                    &spec,
-                    if spec.use_relative_paths {
-                        current_dir.join(deps_file_location.parent().unwrap())
-                    } else {
-                        current_dir.clone()
-                    },
-                    &solution,
-                    &dotgclient,
-                    SyncOptions {
-                        no_history,
-                        jobs,
-                        verbosity,
-                        cipd_ignore_platformed,
-                        ..Default::default()
-                    },
-                )
-                .await;
+                done_solutions.extend(tbd_solutions.iter().map(|s| s.0));
             }
         }
         Commands::Config { spec: maybe_spec } => {

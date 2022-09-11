@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::types::deps::VarsPrimitive;
 use crate::types::machine::{GclientCPU, GclientOS};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone, Default, Debug)]
 pub struct Solution {
     pub name: String,
     pub url: String,
@@ -15,6 +15,8 @@ pub struct Solution {
     #[serde(default)]
     /// do not git checkout, just trust the solution is there and follow the DEPS
     pub tpot_no_checkout: bool,
+    #[serde(default)]
+    pub tpot_internal_from_recursedeps: bool,
 }
 
 #[derive(Deserialize, Debug)]

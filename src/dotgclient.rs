@@ -26,6 +26,13 @@ pub fn read_dotgclient(contents: String) -> Result<Dotgclient> {
         .to_string()
     });
     let mut result: Dotgclient = serde_json::from_str(&result_json).unwrap();
+    if result
+        .solutions
+        .iter()
+        .all(|s| s.tpot_internal_from_recursedeps == true)
+    {
+        panic!("don't play with me");
+    }
     let host_os = gclient_host_os();
     if result.target_os.contains(&GclientOS::All) {
         result.target_os = OS_LIST.into();
