@@ -19,19 +19,19 @@ name = "gclient"
 
 [dependencies]
 anyhow = "1.0.58"
-clap = { version = "3.2.6", features = ["derive"] }
+clap = { version = "4.1.6", features = ["derive"] }
 futures = "0.3.24"
 globwalk = "0.8.1"
 linya = "0.3.0"
 once_cell = "1.14.0"
 path-absolutize = "3.0.13"
 prost = "0.11.0"
-pyo3 = { version = "0.17.1", features = ["auto-initialize", "macros", "serde"] }
+pyo3 = { version = "0.18.1", features = ["auto-initialize", "macros", "serde"] }
 reqwest = { version = "0.11.11", features = ["gzip"] }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 smart-default = "0.6.0"
-tokio = { version = "1.21.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
 url = "2.2.2"
 zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
 

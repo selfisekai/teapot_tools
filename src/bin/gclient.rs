@@ -16,7 +16,7 @@ struct Cli {
     #[clap(subcommand)]
     command: Commands,
 
-    #[clap(short, long, parse(from_occurrences), global = true)]
+    #[clap(short, long, action = clap::ArgAction::Count, global = true)]
     verbose: i8,
 
     #[clap(short, long, value_parser, default_value_t = false)]
