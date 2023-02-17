@@ -1,6 +1,6 @@
 [package]
 name = "teapot_tools"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Replacement for depot_tools (gclient) and luci-go (cipd)"
 categories = ["development-tools"]
