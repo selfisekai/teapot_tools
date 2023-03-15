@@ -195,7 +195,7 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
                         progress.set_and_draw(bar, done.len());
                     }
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{:#?}", e),
             }
         }
     }
