@@ -335,6 +335,10 @@ async fn handle_dep(
                     .with_context(|| format!("parsing cipd instance file: {:?}", zip_file))?
                     .extract(&clone_path)
                     .with_context(|| format!("extracting cipd instance to: {:?}", clone_path))?;
+                // XXX: .cipdpkg/manifest.json files have permissions set to 400, leading to
+                // OS permission errors on override attempt - every time there's
+                // more than 1 cipd package in a single directory
+                fs::remove_dir_all(clone_path.join(".cipdpkg"))?;
             }
         }
     };
