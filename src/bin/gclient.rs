@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::{env::current_dir, fs};
 
-use anyhow::Context;
+use anyhow::{Context, Result};
 use teapot_tools::gclient::cloner::{clone_dependencies, git_clone, SyncOptions};
 use teapot_tools::gclient::deps_parser::parse_deps;
 
@@ -17,7 +17,7 @@ struct Cli {
     command: Commands,
 
     #[clap(short, long, action = clap::ArgAction::Count, global = true)]
-    verbose: i8,
+    verbose: u8,
 
     #[clap(short, long, value_parser, default_value_t = false)]
     quiet: bool,
@@ -75,10 +75,10 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let verbosity = if cli.quiet { -1 } else { cli.verbose };
+    let verbosity = if cli.quiet { -1 } else { cli.verbose as i8 };
 
     match cli.command {
         Commands::Sync {
@@ -177,7 +177,7 @@ async fn main() {
                             ..Default::default()
                         },
                     )
-                    .await;
+                    .await?;
                 }
                 done_solutions.extend(tbd_solutions.iter().map(|s| s.0));
             }
@@ -198,4 +198,5 @@ async fn main() {
             }
         }
     };
+    Ok(())
 }
