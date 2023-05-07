@@ -51,6 +51,28 @@ pub enum Dependency {
     },
 }
 
+pub type CacheKVList = Vec<(String, String)>;
+
+impl Dependency {
+    pub fn to_cache_kv_list(&self, clone_path: &str) -> CacheKVList {
+        match self {
+            Dependency::CIPD { packages, .. } => packages
+                .iter()
+                .map(|package| {
+                    (
+                        format!("{clone_path}:{}", package.package),
+                        format!(
+                            "https://chrome-infra-packages.appspot.com/{}@{}",
+                            package.package, package.version
+                        ),
+                    )
+                })
+                .collect(),
+            Dependency::Git { url, .. } => vec![(clone_path.to_string(), url.clone())],
+        }
+    }
+}
+
 impl From<DependencyDef> for Dependency {
     fn from(def: DependencyDef) -> Self {
         Dependency::from(&def)

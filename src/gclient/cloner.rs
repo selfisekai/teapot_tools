@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::{fs, path::Path, process::Command};
 
-use anyhow::Context;
+use anyhow::{bail, Context, Result};
 use futures::future::try_join_all;
+use itertools::Itertools;
 use linya::{Bar, Progress};
 use path_absolutize::*;
 use pyo3::types::PyBool;
@@ -16,8 +17,10 @@ use crate::cipd::common::GENERIC_HTTP_CLIENT;
 use crate::cipd::repository::{get_instance_url, resolve_instance};
 use crate::gclient::gn_args::generate_gn_args;
 use crate::gclient::var_utils::{set_builtin_vars, set_vars_from_hashmap};
-use crate::types::deps::{Dependency, DependencyDef, DepsSpec};
+use crate::types::deps::{CacheKVList, Dependency, DependencyDef, DepsSpec};
 use crate::types::dotgclient::{Dotgclient, Solution};
+
+use super::entries_cache::{path_to_entries_cache, read_entries};
 
 #[derive(Debug, SmartDefault, Clone)]
 pub struct SyncOptions {
@@ -52,7 +55,7 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
     solution: &Solution,
     dotgclient: &Dotgclient,
     opts: SyncOptions,
-) {
+) -> Result<()> {
     let base_path = base_path_.as_ref();
 
     let mut deps_with_contitions = Python::with_gil(|py| {
@@ -68,10 +71,17 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
 
         generate_gn_args(&py, globals, vars, spec, base_path);
 
-        let mut deps: Vec<(String, Dependency)> = vec![];
+        let mut deps: Vec<(String, Dependency, CacheKVList)> = vec![];
         for (clone_path, dep_def) in &spec.deps {
             match dep_def {
-                DependencyDef::Simple(_) => deps.push((clone_path.to_owned(), dep_def.into())),
+                DependencyDef::Simple(_) => {
+                    let dep: Dependency = dep_def.into();
+                    deps.push((
+                        clone_path.to_owned(),
+                        dep.clone(),
+                        dep.to_cache_kv_list(clone_path),
+                    ))
+                }
                 DependencyDef::Normal(dep) => {
                     if opts.cipd_ignore_platformed {
                         if let Dependency::CIPD { packages, .. } = dep {
@@ -80,6 +90,7 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
                             }
                         }
                     }
+                    let cache_kv_list = dep.to_cache_kv_list(clone_path);
                     let maybe_condition = match dep {
                         Dependency::Git { url: _, condition } => condition,
                         Dependency::CIPD {
@@ -101,10 +112,10 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
                             println!("{}", status);
                         }
                         if status == true {
-                            deps.push((clone_path.to_owned(), dep.to_owned()));
+                            deps.push((clone_path.to_owned(), dep.to_owned(), cache_kv_list));
                         }
                     } else {
-                        deps.push((clone_path.to_owned(), dep.to_owned()));
+                        deps.push((clone_path.to_owned(), dep.to_owned(), cache_kv_list));
                     }
                 }
             }
@@ -119,15 +130,72 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
         );
     }
 
-    deps_with_contitions.sort_by_cached_key(|(clone_path, _)| clone_path.to_owned());
+    deps_with_contitions.sort_by_cached_key(|(clone_path, ..)| clone_path.to_owned());
+
+    let entries_cache_path = path_to_entries_cache(base_path);
+    let previous_entries_cache = read_entries(entries_cache_path)?;
+
+    let mut new_entries_cache = HashMap::new();
+
+    // fill new cache with dependencies
+    for (_, _, cache_kv_list) in &deps_with_contitions {
+        for (k, v) in cache_kv_list {
+            if new_entries_cache.insert(k.clone(), v).is_some() {
+                bail!("duplicate key: {:?}", k);
+            }
+        }
+    }
+
+    // delete the git repositories that were removed from spec
+    // and paths with cipd packages that were either removed or changed
+    let paths_to_delete = previous_entries_cache
+        .keys()
+        .filter(|&k| !new_entries_cache.contains_key(k))
+        .chain(
+            new_entries_cache
+                .iter()
+                // if key exists in new entries, it's cipd and value (version) changed
+                .filter(|&(k, v)| k.contains(':') && previous_entries_cache.get(k) != Some(v))
+                .map(|(k, _)| k),
+        )
+        .map(|k| {
+            // if cipd, format is "{path}:{package}". if git, it's just path
+            k.split_once(':').map(|(path, _)| path).unwrap_or(k)
+        })
+        .unique()
+        .collect_vec();
+    if opts.verbosity >= 2 {
+        println!("{} paths to delete", paths_to_delete.len());
+    }
+    for path_str in paths_to_delete {
+        let path_ = PathBuf::try_from(path_str)?;
+        let path = path_.absolutize_from(base_path)?;
+        if opts.verbosity >= 2 {
+            println!("deleting {:?}", path);
+        }
+        match fs::remove_dir_all(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+            Ok(()) => {}
+        }
+    }
 
     let tpot_cipd_path = base_path.join(".tpot_cipd");
     fs::create_dir_all(&tpot_cipd_path).expect("create .tpot_cipd dir");
 
-    let mut dep_num = 0;
-    let mut numbered_deps: Vec<NumberedDependency> = deps_with_contitions
+    // if spec didn't change, we're not updating it
+    let deps_to_update = deps_with_contitions
         .into_iter()
-        .map(|(clone_path, dep)| {
+        .filter(|(_, _, cache_kv_list)| {
+            cache_kv_list
+                .iter()
+                .any(|(k, v)| previous_entries_cache.get(k) != Some(v))
+        });
+
+    let mut dep_num = 0;
+    let mut numbered_deps: Vec<NumberedDependency> = deps_to_update
+        .into_iter()
+        .map(|(clone_path, dep, _)| {
             dep_num += 1;
             let abs_clone_path = base_path
                 .join(&clone_path)
@@ -199,14 +267,11 @@ pub async fn clone_dependencies<P: AsRef<Path>>(
             }
         }
     }
+    Ok(())
 }
 
 // pub and out of handle_dep() for handling .gclient solutions
-pub fn git_clone<P: AsRef<Path>>(
-    url_spec: &str,
-    clone_path: P,
-    opts: &SyncOptions,
-) -> anyhow::Result<()> {
+pub fn git_clone<P: AsRef<Path>>(url_spec: &str, clone_path: P, opts: &SyncOptions) -> Result<()> {
     let mut url_parsed = Url::parse(&url_spec).unwrap();
     let url_path = url_parsed.path().to_string();
     let (git_path, git_ref) = if url_path.contains('@') {
@@ -281,7 +346,7 @@ async fn handle_dep(
         tmp_path,
         clone_path,
         dependency,
-        required_num: _,
+        ..
     }: NumberedDependency,
     opts: SyncOptions,
 ) -> anyhow::Result<usize> {

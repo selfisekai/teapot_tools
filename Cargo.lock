@@ -1303,6 +1303,7 @@ dependencies = [
  "clap",
  "futures",
  "globwalk",
+ "itertools",
  "linya",
  "once_cell",
  "path-absolutize",
