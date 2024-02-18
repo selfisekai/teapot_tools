@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 
 use path_absolutize::Absolutize;
 use pyo3::types::PyAny;
@@ -73,7 +72,7 @@ pub fn generate_gn_args<P: AsRef<Path>>(
     if spec.gclient_gn_args.is_none() || spec.gclient_gn_args_file.is_none() {
         return ();
     }
-    let gn_args_file_ = PathBuf::from(spec.gclient_gn_args_file.as_ref().unwrap());
+    let gn_args_file_ = base_path.as_ref().join(spec.gclient_gn_args_file.as_ref().unwrap());
     let gn_args_file = gn_args_file_.as_path().absolutize().unwrap();
     if !gn_args_file.starts_with(base_path) {
         panic!("gclient_gn_args_file outside base_path (suspicious)");
