@@ -63,7 +63,7 @@ runtime:
 - DEPS file is literally Python code run on a Python interpreter, it possibly can run some malicious code.
 - DEPS file contains hooks that are supposed to (not implemented yet) be run before/after cloning dependencies, they can be malicious code.
 
-Please only report security issues over Matrix [`@selfisekai:laura.pm`](https://matrix.to/#/@selfisekai:laura.pm), or by e-mail: `security at selfisekai dot rocks` (PGP key: [`A16F3AB139AEE4A3635D19ED734C629FD04BD319`](https://keys.selfisekai.rocks/gpg)).
+Please only report security issues by e-mail: `security at selfisekai dot rocks`.
 
 ## legal
 
